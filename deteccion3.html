@@ -1,0 +1,286 @@
+
+<!-- Modificar el código para implementar mejoras en términos de interactividad, código o usabilidad. 
+Objetivo: demostrar que sois capaces de atrapar la infor que proviene del vídeo en un elemento canvas 
+y que sois capaces de operar con los píxeles que contiene ese lienzo en HTML5 -->
+
+
+<!--javaScript-->
+<!-- mecanismo de deteccion de movimiento en el que el sist compara los colores del ultimo fotograma con los del anterior -->
+<!-- por lo que si el color ha cambiado, significa que ha habido movimiento -->
+
+<!-- https://youtu.be/0HYPOhCUXi0 -->
+
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Detección de movimiento</title>
+        <style>
+            .titulo{
+                align-items: center;
+                height: 20%;
+                width: 100%;
+                color:white;
+                align-items: center;
+                justify-content: center;
+            }
+           
+            .centro{
+                align-items: center;
+                height: 60%;
+                width: 100%;
+            }
+
+            .pie{
+                align-items: center;
+                height: 20%;
+                width: 100%;
+            }
+            
+            .camara{
+                height: 400px;
+                width: 40%;
+                float: left;
+                color:white;
+            }
+            
+            .deteccion{
+                height: 400px;
+                width: 40%;
+                float: right;
+                color:white;
+            }  
+
+            .paso{
+                width: 40%;
+                color:white;
+                float: right;
+            }  
+            .promedio{
+                color:white;
+                width: 40%;
+                float: left;
+            }  
+
+            body{background:black}
+
+            #lienzo{height: 100%;
+            width: 100%;}
+            #lienzo2{height: 100%;
+            width: 100%;} 
+           
+
+            html,body{background:black;
+                height: 100%;
+                margin: 1px;
+            }
+
+            video{display:none;}
+
+        </style>
+    
+</head>
+    <body>
+        <div class="titulo">
+            <h1>Detección de Movimiento</h1>
+        </div>
+
+        <div class="centro">
+            <div class="camara">
+                <!-- detectar la camara -->
+                <!-- //creo un canvas y modifico sus dimensiones -->
+                <label>CÁMARA</label>
+                <canvas id="lienzo"></canvas>
+            </div>
+            <div class="deteccion">
+                <!-- 640x480= tengo 307.200 pixeles/piezas de info a la consola -->
+                <label>LIENZO</label>
+                <canvas id="lienzo2"></canvas>
+            </div>
+            <video id="video" autoplay></video> 
+            <!-- el video no se puede modificar, viene por defecto -->
+        </div>
+
+        <div class="pie">
+            <div class="paso">
+                <label text="paso">paso</label>  
+                <input type="range" min=10 max="128" id="paso">
+            </div>
+            <div class="promedio">
+                <label text="promedio">promedio</label>
+                <input type="range" min=1 max="128" id="promedio">
+            </div>
+        </div>
+
+        
+        
+
+        <script>
+            document.querySelector("#paso").onchange=function() {
+                paso=this.value
+            } 
+            document.querySelector("#promedio").onchange=function() {
+                mipromedio=this.value
+            }    
+
+            // Declaro las variables iniciales
+            const video = document.getElementById("video");
+            const lienzo = document.getElementById("lienzo");
+            const lienzo2 = document.getElementById("lienzo2");
+            const contexto = lienzo.getContext("2d");
+            const contexto2 = lienzo2.getContext("2d");
+            contexto2.fillStyle = "rgba(255,255,255,0.01)"
+            var cuadrosx = []
+            var cuadrosy = []
+            var atencionx = []
+            var atenciony = []
+            // el paso es cada cuantos pixeles voy a realizar una comparación
+            var paso = 16; //tamaño del circulo
+            var mipromedio=20;
+            // Creo un contenedor para los pixeles del fotograma anterior
+            var pixelesviejos = [];
+            // Creo un contenedor para los pixeles del ultimo fotograma
+            var pixelesnuevos = [];
+            var contador = 0;
+            // sobre el objeto navigator capturo el video:
+            navigator.mediaDevices.getUserMedia({video:true})
+                .then(function(flujo){
+                    video.srcObject = flujo;
+                })
+                .catch(function(error){
+                    console.log("error: "+error)
+                })
+            
+            //dibujo lo que hay en el video pero en el canvas
+            function videoALienzo(){
+                cuadrosx = []
+                cuadrosy = []
+                // Creo una capa semitransrente, para que los pixeles desaparezcan mas poco a poco
+                contexto2.fillStyle = "rgba(255,255,255,0.01)"
+                contexto2.fillRect(0,0,640,480) 
+                
+                contexto.drawImage(
+                    video, // En el canvas pego el video (pq en el canvas puedo tocar los pixeles pero en el video no)
+                    0,
+                    0,
+                    lienzo.width,
+                    lienzo.height);
+                // A los pixeles viejos les pongo el valor de los anteriores
+                pixelesviejos = pixelesnuevos
+                // Reinicio la info de los pixeles nuevos
+                pixelesnuevos = [];
+                // Repaso la imagen en X y en Y, (un bucle para cada una)
+                for(let x = 0;x<640;x+=paso){ //desde 0 a 640 que es el tamaño max del lienzo
+                    for(let y = 0;y<480;y+=paso){
+                        // Tomo el valor del pixel en cada punto
+                        let pixel = contexto.getImageData(x,y,1,1);//x, y, anchua, altura
+                        // Y en los pixeles nuevos, pongo la info
+                        pixelesnuevos.push({
+                            data:pixel.data,
+                            x:x,
+                            y:y
+                        })
+                    }
+                }
+                // Si estoy en la segunda iteración
+                if(contador > 0){
+                    // Repaso el array y tomo los valores nuevos y antiguos
+                    for(let i = 0;i<pixelesnuevos.length;i++){
+                        //teniendo en cuenta los 3 componentes de color
+                        //la calidad de la camara tambien interviene en el reconocimiento
+                        let rojonuevo = pixelesnuevos[i].data[0]  
+                        let rojoviejo = pixelesviejos[i].data[0]
+                        let verdenuevo = pixelesnuevos[i].data[1]
+                        let verdeviejo = pixelesviejos[i].data[1]
+                        let azulnuevo = pixelesnuevos[i].data[2]
+                        let azulviejo = pixelesviejos[i].data[2]
+                        
+                        // Y comparo los valores
+                        let diferenciarojo = Math.abs(rojonuevo-rojoviejo)
+                        let diferenciaverde = Math.abs(verdenuevo-rojoviejo)
+                        let diferenciaazul = Math.abs(azulnuevo-azulviejo)
+                        
+                        let promedio = (diferenciarojo+diferenciaverde+diferenciaazul)/3
+                        
+                        // Si la diferencia (de color) es grande, es que hay movimiento
+                        if(promedio > mipromedio){
+                            // Si hay movimiento, dibuja formas circulares de color purpura
+                            contexto2.fillStyle = "purple";
+                            contexto2.beginPath(); //empezar a pintar
+                            contexto2.arc(
+                                pixelesnuevos[i].x,
+                                pixelesnuevos[i].y,
+                                paso / 2, 
+                                0,
+                                Math.PI * 2,
+                                true
+                            );
+                            contexto2.fill();
+                            
+                            if(typeof(cuadrosx[pixelesnuevos[i].x]) == 'undefined'){
+                                cuadrosx[pixelesnuevos[i].x] = 1
+                            }else{
+                                cuadrosx[pixelesnuevos[i].x]++
+                            }
+                            if(typeof(cuadrosy[pixelesnuevos[i].y]) == 'undefined'){
+                                cuadrosy[pixelesnuevos[i].y] = 1
+                            }else{
+                                cuadrosy[pixelesnuevos[i].y]++
+                            }
+                        }
+                    }
+                }
+                // Búsqueda de máximos (movimiento) en X
+                let maxx = 0
+                let maxcuentax = 0;
+                let maxy = 0
+                let maxcuentay = 0;
+                cuadrosx.forEach(function(number, index) {
+                    if(number > maxcuentax){
+                        maxcuentax = number;
+                        maxx = index
+                    }
+                });
+                // Búsqueda de máximos en X
+                cuadrosy.forEach(function(number, index) {
+                    if(number > maxcuentay){
+                        maxcuentay = number;
+                        maxy = index
+                    }
+                });
+                if(maxx != 0){
+                    atencionx.push(maxx)
+                    atenciony.push(maxy)
+                    if(atencionx.length > 10){
+                        atencionx.splice(0,1)
+                        atenciony.splice(0,1)
+                    }
+                    let sumax = 0;
+                    let sumay = 0;
+                    for(let i = 0;i<10;i++){
+                        sumax += atencionx[i]
+                        sumay += atenciony[i]
+                    }
+                    sumax /= 10
+                    sumay /= 10
+                    //dibujamos formas circulares con otro color
+                    contexto2.fillStyle = "medium purple";
+                    contexto2.beginPath()
+                    contexto2.arc(
+                        sumax,
+                        sumay,
+                        40,0,Math.PI*2,true)
+                    contexto2.fill()
+                }
+                
+                contador++;
+                requestAnimationFrame(videoALienzo)//funcion recursiva que se llama a si misma
+            }
+
+            video.addEventListener('play',function(){// ejecutamos la funcion
+                videoALienzo()
+            })
+            
+        </script>
+    </body>
+</html>
